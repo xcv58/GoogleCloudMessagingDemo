@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.os.AsyncTask;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -20,6 +21,7 @@ import com.google.android.gms.gcm.GoogleCloudMessaging;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -58,6 +60,9 @@ public class MainActivity extends ActionBarActivity {
     Context context;
 
     String regid;
+    String deviceID;
+    boolean createNewRecord = false;
+    String remoteRecord = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,6 +70,9 @@ public class MainActivity extends ActionBarActivity {
         setContentView(R.layout.activity_main);
 
         context = getApplicationContext();
+
+        TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        deviceID = tm.getDeviceId();
 
         // Check device for Play Services APK.
         if (checkPlayServices()) {
@@ -74,9 +82,8 @@ public class MainActivity extends ActionBarActivity {
             Toast.makeText(this, "Regid: " + regid, Toast.LENGTH_SHORT).show();
             if (regid.isEmpty()) {
                 registerInBackground();
-            } else {
-                tellServer();
             }
+            tellServer();
         } else {
             Toast.makeText(this, "No Play Services!", Toast.LENGTH_SHORT).show();
         }
@@ -166,7 +173,7 @@ public class MainActivity extends ActionBarActivity {
         // This sample app persists the registration ID in shared preferences, but
         // how you store the registration ID in your app is up to you.
         return getSharedPreferences(MainActivity.class.getSimpleName(),
-                Context.MODE_PRIVATE);
+                MODE_PRIVATE);
     }
 
     /**
@@ -214,6 +221,7 @@ public class MainActivity extends ActionBarActivity {
 
                     // Persist the registration ID - no need to register again.
                     storeRegistrationId(context, regid);
+                    updateToServer();
                 } catch (IOException ex) {
                     msg = "Error :" + ex.getMessage();
                     // If there is an error, don't just keep trying to register.
@@ -253,67 +261,70 @@ public class MainActivity extends ActionBarActivity {
         editor.commit();
     }
 
-//    RequestQueue queue = Volley.newRequestQueue(this);
-//    String url ="http://www.google.com";
+    private void updateToServer() {
+        Log.d(TAG, "update to server run");
+        if (regid == null || regid.isEmpty()) {
+            Log.d(TAG, "regid is not ready!");
+            return;
+        }
+        if (remoteRecord == null) {
+            Log.d(TAG, "remoteRecord is not ready!");
+            return;
+        }
+        Log.d(TAG, "actual update to server");
+        SyncWithMaybe syncWithMaybe = new SyncWithMaybe();
+        syncWithMaybe.execute();
+    }
+
+    private class SyncWithMaybe extends AsyncTask {
+        @Override
+        protected Object doInBackground(Object[] params) {
+            if (createNewRecord) {
+                Log.d(TAG, "Create new Record");
+            } else {
+                // examine whether is difference
+                Log.d(TAG, "Compare local regid and remote regid ");
+            }
+            return null;
+        }
+    }
+
+    //    private String URL = "https://maybe.xcv58.me/maybe-api-v1/devices/001";
+    private String URL = "https://maybe.xcv58.me/maybe-api-v1/devices/" + deviceID;
+    private class MaybeBackendTask extends AsyncTask {
+        @Override
+        protected Object doInBackground(Object[] params) {
+            Log.d(TAG, deviceID);
+            HttpClient httpclient = new DefaultHttpClient();
+            try {
+                HttpGet get = new HttpGet(URL);
+                get.setHeader("Content-type", "application/json");
+
+                HttpResponse response = httpclient.execute(get);
+                StatusLine statusLine = response.getStatusLine();
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                response.getEntity().writeTo(out);
+                String responseString = out.toString();
+                remoteRecord = responseString;
+                Log.d(TAG, responseString);
+                if (responseString.contains("No Record(s) Found")) {
+                    Log.d(TAG, "prepare new");
+                    createNewRecord = true;
+                } else {
+                    Log.d(TAG, "update exist");
+                    createNewRecord = false;
+                }
+                out.close();
+                updateToServer();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+    }
 
     private void tellServer() {
-        new AsyncTask() {
-            @Override
-            protected Object doInBackground(Object[] params) {
-                String URL = "https://maybe.xcv58.me/maybe-api-v1/devices";
-                HttpClient httpclient = new DefaultHttpClient();
-                try {
-                    HttpPost post = new HttpPost(URL);
-                    post.setHeader("Content-type", "application/json");
-
-                    JSONObject jsonObject = new JSONObject();
-                    jsonObject.put("deviceid", regid);
-
-                    Log.d(TAG, jsonObject.toString());
-                    StringEntity se = new StringEntity(jsonObject.toString());
-                    se.setContentEncoding(new BasicHeader(HTTP.CONTENT_TYPE, "application/json"));
-                    post.setEntity(se);
-
-                    HttpResponse response = httpclient.execute(post);
-                    StatusLine statusLine = response.getStatusLine();
-                    if (true) {
-//                        if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
-                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        response.getEntity().writeTo(out);
-                        String responseString = out.toString();
-                        Log.d(TAG, responseString);
-                        out.close();
-                    } else {
-                        //Closes the connection.
-                        response.getEntity().getContent().close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-//                String URL = "https://maybe.xcv58.me/maybe-api-v1/devices";
-//                HttpClient httpclient = new DefaultHttpClient();
-//                try {
-//                    HttpGet get = new HttpGet(URL);
-//                    HttpResponse response = httpclient.execute(get);
-//                    StatusLine statusLine = response.getStatusLine();
-//                    if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
-//                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-//                        response.getEntity().writeTo(out);
-//                        String responseString = out.toString();
-//                        Log.d(TAG, responseString);
-//                        out.close();
-//                    } else {
-//                        //Closes the connection.
-//                        response.getEntity().getContent().close();
-//                    }
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-                return null;
-            }
-
-        }.execute(null, null, null);
+        MaybeBackendTask task = new MaybeBackendTask();
+        task.execute();
     }
 }
