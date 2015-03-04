@@ -25,10 +25,12 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.HTTP;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -279,24 +281,84 @@ public class MainActivity extends ActionBarActivity {
     private class SyncWithMaybe extends AsyncTask {
         @Override
         protected Object doInBackground(Object[] params) {
-            if (createNewRecord) {
-                Log.d(TAG, "Create new Record");
-            } else {
-                // examine whether is difference
-                Log.d(TAG, "Compare local regid and remote regid ");
+            HttpClient httpclient = new DefaultHttpClient();
+            try {
+                if (createNewRecord) {
+                    Log.d(TAG, "Create new Record");
+                    String postUrl = "https://maybe.xcv58.me/maybe-api-v1/devices";
+                    HttpPost post = new HttpPost(postUrl);
+                    post.setHeader("Content-type", "application/json");
+
+                    JSONObject data = new JSONObject();
+                    data.put("deviceid", deviceID);
+                    data.put("gcmid", regid);
+
+                    StringEntity se = new StringEntity(data.toString());
+                    post.setEntity(se);
+
+                    HttpResponse response = httpclient.execute(post);
+                    StatusLine statusLine = response.getStatusLine();
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    response.getEntity().writeTo(out);
+                    String responseString = out.toString();
+                    Log.d(TAG, responseString);
+                    out.close();
+                } else {
+                    // examine whether is difference
+                    String GCMID = "gcmid";
+                    JSONArray jsonArray = new JSONArray(remoteRecord);
+                    JSONObject jsonObject = (JSONObject) jsonArray.get(0);
+                    Log.d(TAG, "Compare local regid and remote regid ");
+                    if (jsonObject.has(GCMID)) {
+                        if (regid.equals(jsonObject.getString(GCMID))) {
+                            Log.d(TAG, "has gcmid and equal");
+                            return null;
+                        } else {
+                            Log.d(TAG, "has gcmid not equal");
+                        }
+                    } else {
+                        Log.d(TAG, "no gcmid");
+                    }
+                    // update gcmid:
+                    String putUrl = "https://maybe.xcv58.me/maybe-api-v1/devices/" + deviceID;
+                    HttpPut put = new HttpPut(putUrl);
+                    put.setHeader("Content-type", "application/json");
+
+                    JSONObject data = new JSONObject();
+                    JSONObject gcmidJson = new JSONObject();
+                    gcmidJson.put(GCMID, regid);
+                    data.put("$set", gcmidJson);
+
+                    StringEntity se = new StringEntity(data.toString());
+                    put.setEntity(se);
+
+                    HttpResponse response = httpclient.execute(put);
+                    StatusLine statusLine = response.getStatusLine();
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    response.getEntity().writeTo(out);
+                    String responseString = out.toString();
+                    Log.d(TAG, responseString);
+                    out.close();
+                }
+            } catch (ClientProtocolException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
             return null;
         }
     }
 
     //    private String URL = "https://maybe.xcv58.me/maybe-api-v1/devices/001";
-    private String URL = "https://maybe.xcv58.me/maybe-api-v1/devices/" + deviceID;
     private class MaybeBackendTask extends AsyncTask {
         @Override
         protected Object doInBackground(Object[] params) {
-            Log.d(TAG, deviceID);
             HttpClient httpclient = new DefaultHttpClient();
             try {
+                String URL = "https://maybe.xcv58.me/maybe-api-v1/devices/" + deviceID;
+                Log.d(TAG, URL);
                 HttpGet get = new HttpGet(URL);
                 get.setHeader("Content-type", "application/json");
 
