@@ -204,7 +204,7 @@ public class MainActivity extends ActionBarActivity {
             protected Object doInBackground(Object[] params) {
                 String msg = "";
                 try {
-                    Toast.makeText(context, "Start AsyncTask!", Toast.LENGTH_SHORT).show();
+//                    Toast.makeText(context, "Start AsyncTask!", Toast.LENGTH_SHORT).show();
                     if (gcm == null) {
                         gcm = GoogleCloudMessaging.getInstance(context);
                     }
@@ -317,7 +317,7 @@ public class MainActivity extends ActionBarActivity {
                             Log.d(TAG, "has gcmid not equal");
                         }
                     } else {
-                        Log.d(TAG, "no gcmid");
+                        Log.d(TAG, "no gcmid " + deviceID);
                     }
                     // update gcmid:
                     String putUrl = "https://maybe.xcv58.me/maybe-api-v1/devices/" + deviceID;
@@ -327,9 +327,18 @@ public class MainActivity extends ActionBarActivity {
                     JSONObject data = new JSONObject();
                     JSONObject gcmidJson = new JSONObject();
                     gcmidJson.put(GCMID, regid);
-                    data.put("$set", gcmidJson);
-
-                    StringEntity se = new StringEntity(data.toString());
+                    JSONObject temp = new JSONObject();
+                    temp.put("a", 1);
+                    temp.put("b", 2);
+                    temp.put("c", 3);
+                    temp.put("d", 4);
+                    temp.put("e", 5);
+                    String string = temp.toString();
+                    temp = new JSONObject(string);
+                    gcmidJson.put("temp_str", temp);
+                    JSONObject finalJSON = new JSONObject();
+                    finalJSON.put("$set", gcmidJson);
+                    StringEntity se = new StringEntity(finalJSON.toString());
                     put.setEntity(se);
 
                     HttpResponse response = httpclient.execute(put);
@@ -337,7 +346,7 @@ public class MainActivity extends ActionBarActivity {
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     response.getEntity().writeTo(out);
                     String responseString = out.toString();
-                    Log.d(TAG, responseString);
+                    Log.d(TAG, statusLine.getStatusCode() + ": " + responseString);
                     out.close();
                 }
             } catch (ClientProtocolException e) {
